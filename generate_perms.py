@@ -5,9 +5,7 @@ import copy
 from typing import Callable
 from typing import Self
 
-seed_round = [1, 2, 3, 4, 5, 6, 7, 8]
-
-raw_perms = itertools.permutations(seed_round)
+raw_perms = itertools.permutations([1, 2, 3, 4, 5, 6, 7, 8])
 
 
 def sortperm(perm: tuple) -> tuple:
@@ -18,7 +16,6 @@ def sortperm(perm: tuple) -> tuple:
     if len(perm) == 8:
         return tuple(perm_s + sorted(perm[6:8]))
     return tuple(perm_s + list(perm[6:7]))
-
 
 # sort segments of 2
 segments_alphabetically_sorted_perms = map(sortperm, raw_perms)
@@ -53,6 +50,7 @@ class Tournament:
     maxcount: int
     rounds: list[tuple[int]] = []
     plays: dict[int, int] = {}
+    pairs: set[tuple[int, int]] = set()
 
     def __init__(self, maxcount: int):
         self.maxcount = maxcount
@@ -60,14 +58,19 @@ class Tournament:
     def __str__(self) -> str:
         return f"Tour[ len={self.count()}, rounds={self.rounds}, plays={self.plays} ]"
 
-    def append_next_round(self, next_round: tuple) -> Self:
+    def append_next_round(self, next_round: tuple[int, ...]) -> Self:
         new_tour = Tournament(self.maxcount)
         new_tour.rounds = self.rounds + [next_round]
         new_tour.plays =  copy.deepcopy(self.plays)
+        new_tour.pairs =  copy.deepcopy(self.pairs)
 
         for i in range(0, len(next_round) - 1, 2):
-            team1 = next_round[i]
-            team2 = next_round[i+1]
+            team1: int = next_round[i]
+            team2: int = next_round[i+1]
+
+            if i<6: # only prevent duplicate pairs for competing, not breaks
+                new_tour.pairs.add((team1, team2))
+
             plays = new_tour.plays.get(i, {})
             if team1 in next_round[i:i+2]:
                 plays[team1] = plays.get(team1, 0) + 1
@@ -93,14 +96,21 @@ class Tournament:
     def is_valid_next_round(self, next_round: tuple) -> bool:
         if next_round in self.rounds: return False
 
-        # search for duplicate pairings (same teams play against each other twice in same discipline)
+        if len(self.rounds)==0:
+            return True
+
+        latest_round=self.rounds[len(self.rounds)-1]
+        if not are_allowed_neighbours(latest_round, next_round):
+            return False
+        # search for duplicate pairings (same teams play against each other twice)
         # check that noone is playing the same discipline twice - INCL BREAKS!
         for i in range(0, len(next_round), 2):
             pairing = next_round[i:i + 2]
+            if pairing in self.pairs: return False
+
             team1 = next_round[i]
             team2 = next_round[i+1]
             for round in self.rounds:
-                if pairing == round[i:i + 2]: return False
                 if team1 in round[i:i+2]:
                     if self.plays.get(i, {}).get(team1, 0) > 1: return False
                 if team2 in round[i:i+2]:
@@ -114,13 +124,13 @@ def calc_tour(all_perms: list[tuple], current_tour: Tournament) -> list[Tourname
     if current_tour.is_complete():
         print("tour complete", current_tour)
         return [current_tour]
-    if current_tour.is_empty():
-        next_rounds = all_perms
-    else:
-        latest_round = current_tour.latest_round()
-        next_rounds = filter(is_allowed_next_round(latest_round), all_perms)
+    # if current_tour.is_empty():
+    #     next_rounds = all_perms
+    # else:
+    #     latest_round = current_tour.latest_round()
+    #     next_rounds = filter(is_allowed_next_round(latest_round), all_perms)
 
-    next_rounds = filter(current_tour.is_valid_next_round, next_rounds)
+    next_rounds = filter(current_tour.is_valid_next_round, all_perms)
 
     tours = []
     for next_round in next_rounds:
@@ -134,7 +144,9 @@ def calc_tour(all_perms: list[tuple], current_tour: Tournament) -> list[Tourname
 
 MAX_TOUR_SIZE = 8
 
-tournament = Tournament(MAX_TOUR_SIZE).append_next_round(tuple(seed_round))
+seed_round = all_perms[0]
+
+tournament = Tournament(MAX_TOUR_SIZE) #.append_next_round(tuple(seed_round))
 all_tours = calc_tour(all_perms, tournament)
 
 # print(all_tours)
