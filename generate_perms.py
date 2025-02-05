@@ -33,6 +33,24 @@ class Round:
             plays[team2] = plays.get(team2, 0) + 1
             all_plays[i] = plays
 
+    def is_allowed_next_round(self: Self, next: Self) -> bool:
+        # NO team must compete twice in a row in same competition
+
+        for ix, team in enumerate(self.round):
+            ix0 = (ix // 2)
+            ix1 = ix0 + 1
+            if team == next.round[ix0] or team == next.round[ix1]: return False
+
+        # perm1 = self.round
+        # perm2 = other.round
+        # for i in range(0, len(perm1) - 1, 2):
+        #     is_ok = (((perm1[i] != perm2[i]) and (perm1[i] != perm2[i + 1])) and
+        #              ((perm1[i + 1] != perm2[i]) and (perm1[i + 1] != perm2[i + 1])))
+        #     if not is_ok:
+        #         return False
+        #
+        return True
+
 
 class Tournament:
     maxcount: int
@@ -79,18 +97,6 @@ class Tournament:
         return self.rounds[len(self.rounds) - 1]
 
     @staticmethod
-    def are_allowed_neighbours(this: Round, other: Round) -> bool:
-        perm1 = this.round
-        perm2 = other.round
-        for i in range(0, len(perm1) - 1, 2):
-            is_ok = (((perm1[i] != perm2[i]) and (perm1[i] != perm2[i + 1])) and
-                     ((perm1[i + 1] != perm2[i]) and (perm1[i + 1] != perm2[i + 1])))
-            if not is_ok:
-                return False
-
-        return True
-
-    @staticmethod
     def are_consecutive_with_pause(r1: Round, r2: Round, cur: Round):
         for team in r2.round:
             for ix, _ in enumerate(r2.competitions):
@@ -107,7 +113,7 @@ class Tournament:
             return True
 
         latest_round = self.rounds[len(self.rounds) - 1]
-        if not self.are_allowed_neighbours(latest_round, next_round):
+        if not latest_round.is_allowed_next_round(next_round):
             return False
 
         if len(self.rounds) > 1:
