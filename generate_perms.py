@@ -3,6 +3,9 @@
 import itertools
 import copy
 from typing import Self
+import time
+
+timestamp_start = int(time.time() * 1000.0)
 
 
 class Round:
@@ -24,24 +27,47 @@ class Round:
     def record_seen_pairings(self, seen: set[tuple[int, int]]):
         seen.update(self.competitions)
 
-    def record_plays(self, all_plays: dict[int, dict[int, int]]):
-        for i, pair in enumerate(self.competitions):
-            team1: int = pair[0]
-            team2: int = pair[1]
-            plays = all_plays.get(i, {})
-            plays[team1] = plays.get(team1, 0) + 1
-            plays[team2] = plays.get(team2, 0) + 1
-            all_plays[i] = plays
+    def has_seen_pairings(self, seen: set[tuple[int, int]]):
+        return len(set(self.competitions) & seen)>0
+        # return next((True for comp in self.competitions if comp in seen), False)
 
+    def record_plays(self, all_plays: dict[int, dict[int, int]]):
+        for comp_ix, pair in enumerate(self.competitions):
+            plays = all_plays.get(comp_ix, {})
+            for team in pair:
+                plays[team] = plays.get(team, 0) + 1
+            all_plays[comp_ix] = plays
+
+    def exceeds_max_plays(self, all_plays: dict[int, dict[int, int]]):
+        """
+        search for duplicate pairings (same teams play against each other twice)
+        check that noone is playing the same discipline more than twice - INCL BREAKS!
+        """
+        for comp_ix, pair in enumerate(self.competitions):
+            plays = all_plays.get(comp_ix, {})
+            for team in pair:
+                if plays.get(team, 0) > 1: return True
+        return False
 
     def is_allowed_next_round(self: Self, next: Self) -> bool:
         """ NO team must compete twice in a row in same competition """
 
-        # pair each competition from this round with next
-        comp_pairs = [comp_pair for comp_pair in zip(self.competitions + [self.pause], next.competitions + [next.pause])]
-        # calc length of intersection for each pair and sum -> must be 0 if no overlaps
-        overlaps = sum([len(set(comp_pair[0]) & set(comp_pair[1])) for comp_pair in comp_pairs])
-        return overlaps == 0
+        perm1 = self.round
+        perm2 = next.round
+        for i in range(0, len(perm1) - 1, 2):
+            is_ok = (((perm1[i] != perm2[i]) and (perm1[i] != perm2[i + 1])) and
+                     ((perm1[i + 1] != perm2[i]) and (perm1[i + 1] != perm2[i + 1])))
+            if not is_ok:
+                return False
+
+        return True
+
+        # # pair each competition from this round with next
+        # comp_pairs = [comp_pair for comp_pair in
+        #               zip(self.competitions + [self.pause], next.competitions + [next.pause])]
+        # # calc length of intersection for each pair and sum -> must be 0 if no overlaps
+        # overlaps = sum([len(set(comp_pair[0]) & set(comp_pair[1])) for comp_pair in comp_pairs])
+        # return overlaps == 0
 
 
 class Tournament:
@@ -60,18 +86,10 @@ class Tournament:
         new_tour = Tournament(self.maxcount)
         new_tour.rounds = self.rounds + [next_round]
         new_tour.plays = copy.deepcopy(self.plays)
-        new_tour.seen_pairings = copy.deepcopy(self.seen_pairings)
+        new_tour.seen_pairings = self.seen_pairings.copy()
 
         next_round.record_seen_pairings(new_tour.seen_pairings)
-
         next_round.record_plays(new_tour.plays)
-        # for i, pair in enumerate(next_round.competitions):
-        #     team1: int = pair[0]
-        #     team2: int = pair[1]
-        #     plays = new_tour.plays.get(i, {})
-        #     plays[team1] = plays.get(team1, 0) + 1
-        #     plays[team2] = plays.get(team2, 0) + 1
-        #     new_tour.plays[i] = plays
 
         # print(new_tour)
         return new_tour
@@ -98,8 +116,8 @@ class Tournament:
     def is_valid_next_round(self, next_round: Round) -> bool:
         if next_round in self.rounds: return False
 
-        for comp in next_round.competitions:
-            if comp in self.seen_pairings: return False
+        if next_round.has_seen_pairings(self.seen_pairings):
+            return False
 
         if len(self.rounds) == 0:
             return True
@@ -112,14 +130,8 @@ class Tournament:
             before_latest_round = self.rounds[len(self.rounds) - 2]
             if self.are_consecutive_with_pause(before_latest_round, latest_round, next_round): return False
 
-        # search for duplicate pairings (same teams play against each other twice)
-        # check that noone is playing the same discipline more than twice - INCL BREAKS!
-        for i, pair in enumerate(next_round.competitions):
-            team1: int = pair[0]
-            team2: int = pair[1]
-            plays = self.plays.get(i, {})
-            if plays.get(team1, 0) > 1: return False
-            if plays.get(team2, 0) > 1: return False
+        if next_round.exceeds_max_plays(self.plays):
+            return False
 
         return True
 
@@ -127,7 +139,7 @@ class Tournament:
 def calc_tour(all_rounds: list[Round], current_tour: Tournament) -> list[Tournament]:
     # print("ct:", current_tour)
     if current_tour.is_complete():
-        print("tour complete", current_tour)
+        print(int(time.time() * 1000.0) - timestamp_start, "ms: tour complete ", current_tour)
         return [current_tour]
 
     found_tours = []
