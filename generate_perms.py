@@ -5,16 +5,6 @@ import copy
 from typing import Self
 
 
-def sortperm(perm: tuple) -> tuple:
-    assert len(perm) == 8 or len(perm) == 7, "only lists with len=7 or len=8 allowed"
-    # print(len(perm))
-    # todo: generalise for arbitrary number of elements - atm only len=7 or len=8 handled
-    perm_s = sorted(perm[0:2]) + sorted(perm[2:4]) + sorted(perm[4:6])
-    if len(perm) == 8:
-        return tuple(perm_s + sorted(perm[6:8]))
-    return tuple(perm_s + list(perm[6:7]))
-
-
 class Round:
     # round: tuple[int, ...]
     # handball: tuple[int, int]
@@ -159,7 +149,14 @@ MAX_TOUR_SIZE = 8
 seed_round = (1, 2, 3, 4, 5, 6, 7, 8)
 
 raw_perms = itertools.permutations(seed_round)
+
+
 # sort segments of 2
+def sortperm(perm: tuple) -> tuple:
+    pairings = [sorted(p) for p in itertools.batched(perm, 2)]
+    return tuple(itertools.chain.from_iterable(pairings))
+
+
 segments_alphabetically_sorted_perms = map(sortperm, raw_perms)
 
 # filter all duplicates from permutations
