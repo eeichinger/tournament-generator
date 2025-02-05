@@ -33,23 +33,15 @@ class Round:
             plays[team2] = plays.get(team2, 0) + 1
             all_plays[i] = plays
 
+
     def is_allowed_next_round(self: Self, next: Self) -> bool:
-        # NO team must compete twice in a row in same competition
+        """ NO team must compete twice in a row in same competition """
 
-        for ix, team in enumerate(self.round):
-            ix0 = (ix // 2)
-            ix1 = ix0 + 1
-            if team == next.round[ix0] or team == next.round[ix1]: return False
-
-        # perm1 = self.round
-        # perm2 = other.round
-        # for i in range(0, len(perm1) - 1, 2):
-        #     is_ok = (((perm1[i] != perm2[i]) and (perm1[i] != perm2[i + 1])) and
-        #              ((perm1[i + 1] != perm2[i]) and (perm1[i + 1] != perm2[i + 1])))
-        #     if not is_ok:
-        #         return False
-        #
-        return True
+        # pair each competition from this round with next
+        comp_pairs = [comp_pair for comp_pair in zip(self.competitions + [self.pause], next.competitions + [next.pause])]
+        # calc length of intersection for each pair and sum -> must be 0 if no overlaps
+        overlaps = sum([len(set(comp_pair[0]) & set(comp_pair[1])) for comp_pair in comp_pairs])
+        return overlaps == 0
 
 
 class Tournament:
