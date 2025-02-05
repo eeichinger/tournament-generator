@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import random
 import itertools
 import copy
 from typing import Callable
@@ -70,7 +71,7 @@ class Tournament:
         self.maxcount = maxcount
 
     def __str__(self) -> str:
-        return f"Tour[ len={self.count()}, rounds={[ r.round for r in self.rounds]}, plays={self.plays} ]"
+        return f"Tour[ len={self.count()}, rounds={[r.round for r in self.rounds]}, plays={self.plays} ]"
 
     def append_next_round(self, next_round: Round) -> Self:
         new_tour = Tournament(self.maxcount)
@@ -109,12 +110,12 @@ class Tournament:
     def is_valid_next_round(self, next_round: Round) -> bool:
         if next_round in self.rounds: return False
 
-        if len(self.rounds) == 0:
-            return True
-
         if next_round.handball in self.seen_pairings: return False
         if next_round.turmball in self.seen_pairings: return False
         if next_round.parcours in self.seen_pairings: return False
+
+        if len(self.rounds) == 0:
+            return True
 
         latest_round = self.rounds[len(self.rounds) - 1]
         if not latest_round.are_allowed_neighbours(next_round):
@@ -153,7 +154,34 @@ def calc_tour(all_rounds: list[Round], current_tour: Tournament) -> list[Tournam
 MAX_TOUR_SIZE = 8
 
 all_rounds: list[Round] = [Round(perm) for perm in all_perms]
+random.shuffle(all_rounds)
+
+avoid_handball_pairings = {
+    (2, 8), (4, 5), (1, 3), (6, 7), (3, 4), (2, 5), (6, 8), (1, 7),  # Betzingen
+    # (3, 8), (1, 2), (4, 7), (5, 6), (1, 7), (2, 4), (5, 8), (4, 6),  # Ehningen
+    (1, 6), (7, 8), (2, 4), (3, 5), (1, 8), (4, 6), (5, 7), (2, 4),  # Pfullingen
+}
+avoid_turmball_pairings = {
+    (4, 7), (3, 6), (5, 8), (1, 2), (6, 7), (1, 8), (2, 3), (4, 5),  # Betzingen
+    # (4, 5), (6, 8), (1, 3), (2, 7), (4, 8), (1, 5), (2, 6), (3, 7),  # Ehningen
+    (2, 8), (4, 5), (1, 3), (6, 7), (3, 4), (2, 5), (6, 8), (1, 7),  # Pfullingen
+}
+
+avoid_parcours_pairings = {
+    (1, 6), (5, 7), (2, 8), (3, 4), (5, 6), (4, 8), (3, 7), (1, 2)  # Ehningen
+}
+
+
+def shall_avoid_pairing(r: Round):
+    return ((not r.handball in avoid_handball_pairings) and
+            (not r.turmball in avoid_turmball_pairings))
+
+
+all_rounds = list(filter(shall_avoid_pairing, all_rounds))
+print(f"all_rounds.len={len(all_rounds)}")
+
 tournament = Tournament(MAX_TOUR_SIZE)  # .append_next_round(tuple(seed_round))
+# tournament.seen_pairings.update([(3,8), (1,2), (4,7), (5,6), (1,7), (2,4), (5,8), (4,6)])
 all_tours = calc_tour(all_rounds, tournament)
 
 # print(all_tours)
