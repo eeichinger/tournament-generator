@@ -28,7 +28,7 @@ class Round:
         seen.update(self.competitions)
 
     def has_seen_pairings(self, seen: set[tuple[int, int]]):
-        return len(set(self.competitions) & seen)>0
+        return len(set(self.competitions) & seen) > 0
         # return next((True for comp in self.competitions if comp in seen), False)
 
     def record_plays(self, all_plays: dict[int, dict[int, int]]):
@@ -108,6 +108,15 @@ class Tournament:
 
     @staticmethod
     def are_consecutive_with_pause(r1: Round, r2: Round, cur: Round):
+        # with less than 8 teams we must not enforce a gap of 2 rounds between each comp for each team
+        if len(r2.round) < 8:
+            # only check for paused teams and last competition ("parcours"), i.e. no team faces parcours-pause-parcours
+            for team in r2.pause:
+                if team in r1.competitions[-1] and team in cur.competitions[-1]: return True
+                # for ix, _ in enumerate(r2.competitions[1:]):
+                #     if team in r1.competitions[ix] and team in cur.competitions[ix]: return True
+            return False
+
         for team in r2.round:
             for ix, _ in enumerate(r2.competitions):
                 if team in r1.competitions[ix] and team in cur.competitions[ix]: return True
