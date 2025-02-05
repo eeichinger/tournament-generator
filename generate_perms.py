@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
 
-import random
 import itertools
 import copy
-from typing import Callable
 from typing import Self
-
-raw_perms = itertools.permutations([1, 2, 3, 4, 5, 6, 7, 8])
 
 
 def sortperm(perm: tuple) -> tuple:
@@ -17,19 +13,6 @@ def sortperm(perm: tuple) -> tuple:
     if len(perm) == 8:
         return tuple(perm_s + sorted(perm[6:8]))
     return tuple(perm_s + list(perm[6:7]))
-
-
-# sort segments of 2
-segments_alphabetically_sorted_perms = map(sortperm, raw_perms)
-
-# filter all duplicates from permutations
-all_perms: list[tuple] = list(set(segments_alphabetically_sorted_perms))
-# print("---------------")
-# print(allowed_perms)
-# print("number of allowed perms:", len(allowed_perms))
-print("---------------")
-# print(allowed_perms)
-print("number of all perms:", len(all_perms))
 
 
 class Round:
@@ -46,19 +29,11 @@ class Round:
         self.parcours = round[4:6]
         self.pause = round[6:8]
 
-    def __str__(self) -> str:
-        return f"Round[ {self.round} ]"
+    def __repr__(self) -> str:
+        return f"Round(({self.round}))"
 
-    def are_allowed_neighbours(self, other: Self) -> bool:
-        perm1 = self.round
-        perm2 = other.round
-        for i in range(0, len(perm1) - 1, 2):
-            is_ok = (((perm1[i] != perm2[i]) and (perm1[i] != perm2[i + 1])) and
-                     ((perm1[i + 1] != perm2[i]) and (perm1[i + 1] != perm2[i + 1])))
-            if not is_ok:
-                return False
-
-        return True
+    def __lt__(self, other:Self) -> bool:
+        return self.round < other.round
 
 
 class Tournament:
@@ -107,6 +82,26 @@ class Tournament:
     def latest_round(self) -> Round:
         return self.rounds[len(self.rounds) - 1]
 
+    @staticmethod
+    def are_allowed_neighbours(this: Round, other: Round) -> bool:
+        perm1 = this.round
+        perm2 = other.round
+        for i in range(0, len(perm1) - 1, 2):
+            is_ok = (((perm1[i] != perm2[i]) and (perm1[i] != perm2[i + 1])) and
+                     ((perm1[i + 1] != perm2[i]) and (perm1[i + 1] != perm2[i + 1])))
+            if not is_ok:
+                return False
+
+        return True
+
+    @staticmethod
+    def are_consecutive_with_pause(r1: Round, r2: Round, cur: Round):
+        for team in r2.round:
+            if team in r1.handball and team in cur.handball: return True
+            if team in r1.turmball and team in cur.turmball: return True
+            if team in r1.parcours and team in cur.parcours: return True
+        return False
+
     def is_valid_next_round(self, next_round: Round) -> bool:
         if next_round in self.rounds: return False
 
@@ -118,8 +113,12 @@ class Tournament:
             return True
 
         latest_round = self.rounds[len(self.rounds) - 1]
-        if not latest_round.are_allowed_neighbours(next_round):
+        if not self.are_allowed_neighbours(latest_round, next_round):
             return False
+
+        if len(self.rounds) > 1:
+            before_latest_round = self.rounds[len(self.rounds) - 2]
+            if self.are_consecutive_with_pause(before_latest_round, latest_round, next_round): return False
 
         # search for duplicate pairings (same teams play against each other twice)
         # check that noone is playing the same discipline twice - INCL BREAKS!
@@ -139,49 +138,59 @@ def calc_tour(all_rounds: list[Round], current_tour: Tournament) -> list[Tournam
         print("tour complete", current_tour)
         return [current_tour]
 
-    next_rounds = filter(current_tour.is_valid_next_round, all_rounds)
+    found_tours = []
+    for next_round in all_rounds:
+        if current_tour.is_valid_next_round(next_round):
+            found_tours.extend( calc_tour(all_rounds, current_tour.append_next_round(next_round)) )
+    return found_tours
 
-    tours = []
-    for next_round in next_rounds:
-        new_tour = calc_tour(all_rounds, current_tour.append_next_round(next_round))
-        tours = tours + new_tour
-    return tours
-
-
-# p = all_perms[0]
-# nbs = list(filter(is_allowed_neighbour1(), all_perms))
 
 MAX_TOUR_SIZE = 8
+seed_round = (1, 2, 3, 4, 5, 6, 7, 8)
+
+raw_perms = itertools.permutations(seed_round)
+# sort segments of 2
+segments_alphabetically_sorted_perms = map(sortperm, raw_perms)
+
+# filter all duplicates from permutations
+all_perms: list[tuple] = list(set(segments_alphabetically_sorted_perms))
+print("---------------")
+print("number of all perms:", len(all_perms))
 
 all_rounds: list[Round] = [Round(perm) for perm in all_perms]
-random.shuffle(all_rounds)
+# random.shuffle(all_rounds)
+all_rounds = sorted(all_rounds)
 
 avoid_handball_pairings = {
-    (2, 8), (4, 5), (1, 3), (6, 7), (3, 4), (2, 5), (6, 8), (1, 7),  # Betzingen
+    (1, 2), (1, 3), (2, 3), (4, 5), (6, 7), (6, 8), (7, 8)
+    # (2, 8), (4, 5), (1, 3), (6, 7), (3, 4), (2, 5), (6, 8), (1, 7),  # Betzingen
     # (3, 8), (1, 2), (4, 7), (5, 6), (1, 7), (2, 4), (5, 8), (4, 6),  # Ehningen
-    (1, 6), (7, 8), (2, 4), (3, 5), (1, 8), (4, 6), (5, 7), (2, 4),  # Pfullingen
+    # (1, 6), (7, 8), (2, 4), (3, 5), (1, 8), (4, 6), (5, 7), (2, 4),  # Pfullingen
 }
 avoid_turmball_pairings = {
-    (4, 7), (3, 6), (5, 8), (1, 2), (6, 7), (1, 8), (2, 3), (4, 5),  # Betzingen
+    (1, 2), (1, 3), (2, 3), (4, 5), (6, 7), (6, 8), (7, 8)
+    # (4, 7), (3, 6), (5, 8), (1, 2), (6, 7), (1, 8), (2, 3), (4, 5),  # Betzingen
     # (4, 5), (6, 8), (1, 3), (2, 7), (4, 8), (1, 5), (2, 6), (3, 7),  # Ehningen
-    (2, 8), (4, 5), (1, 3), (6, 7), (3, 4), (2, 5), (6, 8), (1, 7),  # Pfullingen
+    # (2, 8), (4, 5), (1, 3), (6, 7), (3, 4), (2, 5), (6, 8), (1, 7),  # Pfullingen
 }
 
 avoid_parcours_pairings = {
-    (1, 6), (5, 7), (2, 8), (3, 4), (5, 6), (4, 8), (3, 7), (1, 2)  # Ehningen
+    # (1,2), (4,5), (6,7), (6,8)
+    # (1, 6), (5, 7), (2, 8), (3, 4), (5, 6), (4, 8), (3, 7), (1, 2)  # Ehningen
 }
 
 
 def shall_avoid_pairing(r: Round):
     return ((not r.handball in avoid_handball_pairings) and
-            (not r.turmball in avoid_turmball_pairings))
+            (not r.turmball in avoid_turmball_pairings) and
+            (not r.parcours in avoid_parcours_pairings)
+            )
 
 
 all_rounds = list(filter(shall_avoid_pairing, all_rounds))
 print(f"all_rounds.len={len(all_rounds)}")
 
-tournament = Tournament(MAX_TOUR_SIZE)  # .append_next_round(tuple(seed_round))
-# tournament.seen_pairings.update([(3,8), (1,2), (4,7), (5,6), (1,7), (2,4), (5,8), (4,6)])
+tournament = Tournament(MAX_TOUR_SIZE)
 all_tours = calc_tour(all_rounds, tournament)
 
 # print(all_tours)
