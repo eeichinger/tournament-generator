@@ -208,3 +208,4 @@ all_tours = calc_tour(all_rounds, tournament)
 
 # print(all_tours)
 print(len(all_tours))
+print(int(time.time() * 1000.0) - timestamp_start, "ms: finished")
