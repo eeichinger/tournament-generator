@@ -6,22 +6,14 @@ from typing import Self
 
 
 class Round:
-    # round: tuple[int, ...]
-    # handball: tuple[int, int]
-    # turmball: tuple[int, int]
-    # parcours: tuple[int, int]
-    # pause: tuple[int, int]
-    # competitions: list[tuple[int, int]]
+    competitions: list[tuple[int, int]]
+    pause: tuple[int, int]
 
     def __init__(self, round: tuple[int, ...]):
         self.round = round
-        self.competitions: list[tuple[int, int]] = [p for p in itertools.batched(round, 2)]
+        self.competitions = [p for p in itertools.batched(round, 2)]
         self.pause = self.competitions.pop()
-
-        # self.handball = self.competitions[0]  # round[0:2]
-        # self.turmball = self.competitions[1]  # round[2:4]
-        # self.parcours = self.competitions[2]  # round[4:6]
-        # self.pause = round[6:]
+        return
 
     def __repr__(self) -> str:
         return f"Round(({self.round}))"
@@ -29,14 +21,23 @@ class Round:
     def __lt__(self, other: Self) -> bool:
         return self.round < other.round
 
-    def record_seen(self, seen: set[tuple[int, int]]):
+    def record_seen_pairings(self, seen: set[tuple[int, int]]):
         seen.update(self.competitions)
+
+    def record_plays(self, all_plays: dict[int, dict[int, int]]):
+        for i, pair in enumerate(self.competitions):
+            team1: int = pair[0]
+            team2: int = pair[1]
+            plays = all_plays.get(i, {})
+            plays[team1] = plays.get(team1, 0) + 1
+            plays[team2] = plays.get(team2, 0) + 1
+            all_plays[i] = plays
 
 
 class Tournament:
     maxcount: int
     rounds: list[Round] = []
-    plays: dict[int, int] = {}
+    plays: dict[int, dict[int, int]] = {}
     seen_pairings: set[tuple[int, int]] = set()
 
     def __init__(self, maxcount: int):
@@ -51,19 +52,16 @@ class Tournament:
         new_tour.plays = copy.deepcopy(self.plays)
         new_tour.seen_pairings = copy.deepcopy(self.seen_pairings)
 
-        next_round.record_seen(new_tour.seen_pairings)
-        # record seen pairings
-        # new_tour.seen_pairings.add(next_round.handball)
-        # new_tour.seen_pairings.add(next_round.parcours)
-        # new_tour.seen_pairings.add(next_round.turmball)
+        next_round.record_seen_pairings(new_tour.seen_pairings)
 
-        for i, pair in enumerate(next_round.competitions):
-            team1: int = pair[0]
-            team2: int = pair[1]
-            plays = new_tour.plays.get(i, {})
-            plays[team1] = plays.get(team1, 0) + 1
-            plays[team2] = plays.get(team2, 0) + 1
-            new_tour.plays[i] = plays
+        next_round.record_plays(new_tour.plays)
+        # for i, pair in enumerate(next_round.competitions):
+        #     team1: int = pair[0]
+        #     team2: int = pair[1]
+        #     plays = new_tour.plays.get(i, {})
+        #     plays[team1] = plays.get(team1, 0) + 1
+        #     plays[team2] = plays.get(team2, 0) + 1
+        #     new_tour.plays[i] = plays
 
         # print(new_tour)
         return new_tour
@@ -97,8 +95,6 @@ class Tournament:
         for team in r2.round:
             for ix, _ in enumerate(r2.competitions):
                 if team in r1.competitions[ix] and team in cur.competitions[ix]: return True
-            # if team in r1.turmball and team in cur.turmball: return True
-            # if team in r1.parcours and team in cur.parcours: return True
         return False
 
     def is_valid_next_round(self, next_round: Round) -> bool:
@@ -106,8 +102,6 @@ class Tournament:
 
         for comp in next_round.competitions:
             if comp in self.seen_pairings: return False
-        # if next_round.turmball in self.seen_pairings: return False
-        # if next_round.parcours in self.seen_pairings: return False
 
         if len(self.rounds) == 0:
             return True
@@ -121,7 +115,7 @@ class Tournament:
             if self.are_consecutive_with_pause(before_latest_round, latest_round, next_round): return False
 
         # search for duplicate pairings (same teams play against each other twice)
-        # check that noone is playing the same discipline twice - INCL BREAKS!
+        # check that noone is playing the same discipline more than twice - INCL BREAKS!
         for i, pair in enumerate(next_round.competitions):
             team1: int = pair[0]
             team2: int = pair[1]
@@ -145,10 +139,11 @@ def calc_tour(all_rounds: list[Round], current_tour: Tournament) -> list[Tournam
     return found_tours
 
 
-MAX_TOUR_SIZE = 8
 seed_round = (1, 2, 3, 4, 5, 6, 7, 8)
+MAX_TOUR_SIZE = len(seed_round)
 
-raw_perms = itertools.permutations(seed_round)
+raw_perms = list(itertools.permutations(seed_round))
+print("number of raw perms:", len(raw_perms))
 
 
 # sort segments of 2
@@ -169,13 +164,13 @@ all_rounds: list[Round] = [Round(perm) for perm in all_perms]
 all_rounds = sorted(all_rounds)
 
 avoid_handball_pairings = {
-    (1, 2), (1, 3), (2, 3), (4, 5), (6, 7), (6, 8), (7, 8)
+    # (1, 2), (1, 3), (2, 3), (4, 5), (6, 7), (6, 8), (7, 8)
     # (2, 8), (4, 5), (1, 3), (6, 7), (3, 4), (2, 5), (6, 8), (1, 7),  # Betzingen
     # (3, 8), (1, 2), (4, 7), (5, 6), (1, 7), (2, 4), (5, 8), (4, 6),  # Ehningen
     # (1, 6), (7, 8), (2, 4), (3, 5), (1, 8), (4, 6), (5, 7), (2, 4),  # Pfullingen
 }
 avoid_turmball_pairings = {
-    (1, 2), (1, 3), (2, 3), (4, 5), (6, 7), (6, 8), (7, 8)
+    # (1, 2), (1, 3), (2, 3), (4, 5), (6, 7), (6, 8), (7, 8)
     # (4, 7), (3, 6), (5, 8), (1, 2), (6, 7), (1, 8), (2, 3), (4, 5),  # Betzingen
     # (4, 5), (6, 8), (1, 3), (2, 7), (4, 8), (1, 5), (2, 6), (3, 7),  # Ehningen
     # (2, 8), (4, 5), (1, 3), (6, 7), (3, 4), (2, 5), (6, 8), (1, 7),  # Pfullingen
