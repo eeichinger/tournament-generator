@@ -2,6 +2,7 @@
 
 import itertools
 import copy
+import random
 from typing import Self
 import time
 
@@ -109,16 +110,16 @@ class Tournament:
     @staticmethod
     def are_consecutive_with_pause(r1: Round, r2: Round, cur: Round):
         # with less than 8 teams we must not enforce a gap of 2 rounds between each comp for each team
-        if len(r2.round) < 8:
-            # only check for paused teams and last competition ("parcours"), i.e. no team faces parcours-pause-parcours
-            for team in r2.pause:
-                if team in r1.competitions[-1] and team in cur.competitions[-1]: return True
-                # for ix, _ in enumerate(r2.competitions[1:]):
-                #     if team in r1.competitions[ix] and team in cur.competitions[ix]: return True
-            return False
+        # if len(r2.round) < 8:
+        #     # only check for paused teams and last competition ("parcours"), i.e. no team faces parcours-pause-parcours
+        #     for team in r2.pause:
+        #         # if team in r1.competitions[-1] and team in cur.competitions[-1]: return True
+        #         for ix, _ in enumerate(r2.competitions[1:]): # only seems to find solutions if at least 1 comp is "free"
+        #             if team in r1.competitions[ix] and team in cur.competitions[ix]: return True
+        #     return False
 
-        for team in r2.round:
-            for ix, _ in enumerate(r2.competitions):
+        for team in r2.pause:
+            for ix, _ in enumerate(r2.competitions[1:]):
                 if team in r1.competitions[ix] and team in cur.competitions[ix]: return True
         return False
 
@@ -155,32 +156,33 @@ def calc_tour(all_rounds: list[Round], current_tour: Tournament) -> list[Tournam
     for next_round in all_rounds:
         if current_tour.is_valid_next_round(next_round):
             found_tours.extend(calc_tour(all_rounds, current_tour.append_next_round(next_round)))
+            if (len(found_tours))>0: return found_tours
+
+    # print("completed:", current_tour, ", children: ", len(found_tours))
     return found_tours
 
 
-seed_round = (1, 2, 3, 4, 5, 6, 7, 8)
-MAX_TOUR_SIZE = len(seed_round)
+def calc_all_permutations(seed_round: tuple[int, ...]):
+    raw_perms = list(itertools.permutations(seed_round))
+    print("number of raw perms:", len(raw_perms))
 
-raw_perms = list(itertools.permutations(seed_round))
-print("number of raw perms:", len(raw_perms))
-
-
-# sort segments of 2
-def sortperm(perm: tuple) -> tuple:
-    pairings = [sorted(p) for p in itertools.batched(perm, 2)]
-    return tuple(itertools.chain.from_iterable(pairings))
+    # sort segments of 2
+    def sortperm(perm: tuple) -> tuple:
+        pairings = [sorted(p) for p in itertools.batched(perm, 2)]
+        return tuple(itertools.chain.from_iterable(pairings))
 
 
-segments_alphabetically_sorted_perms = map(sortperm, raw_perms)
+    segments_alphabetically_sorted_perms = map(sortperm, raw_perms)
 
-# filter all duplicates from permutations
-all_perms: list[tuple] = list(set(segments_alphabetically_sorted_perms))
-print("---------------")
-print("number of all perms:", len(all_perms))
+    # filter all duplicates from permutations
+    all_perms: set[tuple] = set(segments_alphabetically_sorted_perms)
+    print("---------------")
+    print("number of all perms:", len(all_perms))
 
-all_rounds: list[Round] = [Round(perm) for perm in all_perms]
-# random.shuffle(all_rounds)
-all_rounds = sorted(all_rounds)
+    all_rounds: list[Round] = [Round(perm) for perm in all_perms]
+    # all_rounds = sorted(all_rounds)
+    random.shuffle(all_rounds)
+    return all_rounds
 
 avoid_handball_pairings = {
     # (1, 2), (1, 3), (2, 3), (4, 5), (6, 7), (6, 8), (7, 8)
@@ -209,6 +211,10 @@ def shall_avoid_pairing(r: Round):
     )
 
 
+seed_round = (1, 2, 3, 4, 5, 6, 7, 8, 9)
+MAX_TOUR_SIZE = len(seed_round)
+
+all_rounds = calc_all_permutations(seed_round)
 all_rounds = list(filter(shall_avoid_pairing, all_rounds))
 print(f"all_rounds.len={len(all_rounds)}")
 
